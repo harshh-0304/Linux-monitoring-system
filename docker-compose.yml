@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  monitor:
+    build:
+      context: .          # build using the Dockerfile in this directory
+      dockerfile: Dockerfile
+
+    container_name: linux-monitor
+
+    # Map host port 8000 → container port 8000.
+    # Access the API at http://localhost:8000
+    ports:
+      - "8000:8000"
+
+    # Load environment variables from .env file.
+    # This is where you put TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY, etc.
+    # Never commit the actual .env file to git!
+    env_file:
+      - .env
+
+    # Named volume for persistent SQLite database.
+    # Without this, the database is lost every time the container restarts.
+    volumes:
+      - monitor_data:/data
+
+    # IMPORTANT: pid: host gives the container access to the host's /proc
+    # filesystem. psutil reads /proc/stat, /proc/meminfo, etc. to get
+    # CPU/RAM/Disk metrics. Without this, psutil would report container
+    # metrics (very limited) instead of real host metrics.
+    pid: host
+
+    # Also share host network namespaces for accurate network stats
+    # Comment this out if you prefer container-level network isolation
+    # network_mode: host  # Uncomment for host-level network monitoring
+
+    # Automatically restart the container unless you explicitly stop it.
+    # Other options: "no", "always", "on-failure"
+    restart: unless-stopped
+
+    # Resource limits — prevent the monitor from consuming too many resources.
+    # Adjust based on your server's capacity.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"       # max 50% of one CPU core
+          memory: 256M      # max 256 MB RAM
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+    # Logging configuration — prevents log files from growing unboundedly.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"     # rotate when log file reaches 10 MB
+        max-file: "3"       # keep last 3 rotated files
+
+    # Healthcheck mirrors what's in the Dockerfile (compose can override it)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/').raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# Named volume — Docker manages this directory on the host.
+# Data persists across container restarts and rebuilds.
+# To find it: docker volume inspect linux-monitoring_monitor_data
+volumes:
+  monitor_data:

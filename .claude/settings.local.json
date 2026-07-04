@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(alembic upgrade:*)",
+      "Bash(KEY=\"65943b16665ff6fdd6ff254db92f224ec6db9673c24cc7a20ce7bba12e7fec3d\"\n\necho \"=== GET / \\(no auth needed\\) ===\" && curl -s http://localhost:8000/ && echo\n\necho \"=== GET /readyz \\(no auth needed\\) ===\" && curl -s http://localhost:8000/readyz | python3 -m json.tool && echo\n\necho \"=== GET /metrics/current ===\" && curl -s -H \"X-API-Key: $KEY\" http://localhost:8000/metrics/current | python3 -m json.tool && echo\n\necho \"=== POST /metrics/collect ===\" && curl -s -X POST -H \"X-API-Key: $KEY\" http://localhost:8000/metrics/collect | python3 -m json.tool && echo\n\necho \"=== GET /metrics \\(last 1hr\\) ===\" && curl -s -H \"X-API-Key: $KEY\" \"http://localhost:8000/metrics?hours=1&limit=5\" | python3 -m json.tool && echo\n\necho \"=== GET /alerts ===\" && curl -s -H \"X-API-Key: $KEY\" http://localhost:8000/alerts | python3 -m json.tool && echo\n\necho \"=== POST /alerts/test ===\" && curl -s -X POST -H \"X-API-Key: $KEY\" http://localhost:8000/alerts/test | python3 -m json.tool)"
+    ]
+  }
+}

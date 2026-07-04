@@ -1,0 +1,28 @@
+# Secrets — NEVER commit these
+.env
+
+# SQLite database (managed by Docker volume)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# Docker
+.dockerignore
