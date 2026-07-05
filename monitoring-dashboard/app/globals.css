@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #fafafa;
+  --color-canvas-elevated: #ffffff;
+  --color-ink: #171717;
+  --color-body: #4d4d4d;
+  --color-mute: #8f8f8f;
+  --color-faint: #a1a1a1;
+  --color-hairline: #ebebeb;
+  --color-hairline-soft: #f2f2f2;
+  --color-link: #0070f3;
+  --color-error: #ee0000;
+  --color-warning: #f5a623;
+  
+  /* Brand colors */
+  --color-vercel-violet: #7928ca;
+  --color-vercel-cyan: #50e3c2;
+  --color-vercel-pink: #ff0080;
+  --color-vercel-magenta: #eb367f;
+  
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings default to ink color */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-ink);
+}
+
+/* Recharts responsive fix */
+.recharts-responsive-container {
+  min-height: 0 !important;
+}
+
+/* Custom scrollbar - subtle light mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Smooth focus ring - Vercel blue */
+*:focus-visible {
+  outline: 2px solid rgba(0, 112, 243, 0.4);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
