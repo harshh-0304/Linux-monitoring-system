@@ -1,4 +1,5 @@
 "use client";
+// Base card component
 
 import { cn } from "@/lib/utils";
 import { type HTMLAttributes, forwardRef } from "react";
