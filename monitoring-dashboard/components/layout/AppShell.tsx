@@ -1,4 +1,5 @@
 "use client";
+// Main application shell wrapper
 
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
