@@ -1,4 +1,5 @@
 "use client";
+// Time range selection controls
 
 import { TIME_RANGES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
