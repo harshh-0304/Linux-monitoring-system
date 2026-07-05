@@ -1,4 +1,5 @@
 "use client";
+// Sidebar layout configuration
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
