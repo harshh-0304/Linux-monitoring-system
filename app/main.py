@@ -128,6 +128,25 @@ class DiskPartitionInfo(BaseModel):
     percent: float
 
 
+class NetworkInterfaceInfo(BaseModel):
+    interface: str
+    bytes_sent_mb: float
+    bytes_recv_mb: float
+    packets_sent: int
+    packets_recv: int
+    errin: int
+    errout: int
+    dropin: int
+    dropout: int
+    addresses: list[str]
+
+
+class NetworkStatsResponse(BaseModel):
+    interfaces: list[NetworkInterfaceInfo]
+    total_connections: int
+    connection_states: dict[str, int]
+
+
 # --- Lifespan: startup and shutdown logic ---
 
 @asynccontextmanager
@@ -504,3 +523,58 @@ def get_disk_partitions():
         except (PermissionError, OSError):
             continue
     return partitions
+
+
+@app.get(
+    "/system/network",
+    response_model=NetworkStatsResponse,
+    summary="Get network interfaces and socket connections breakdown",
+)
+def get_network_details():
+    """
+    Return per-interface cumulative traffic stats, IP addresses, packet drops,
+    and socket connection state counters.
+    """
+    io_counters = psutil.net_io_counters(pernic=True)
+    if_addrs = psutil.net_if_addrs()
+
+    interfaces = []
+    for iface, io in io_counters.items():
+        addrs = []
+        if iface in if_addrs:
+            for snic in if_addrs[iface]:
+                if snic.address:
+                    addrs.append(snic.address)
+
+        interfaces.append(
+            NetworkInterfaceInfo(
+                interface=iface,
+                bytes_sent_mb=round(io.bytes_sent / (1024 ** 2), 2),
+                bytes_recv_mb=round(io.bytes_recv / (1024 ** 2), 2),
+                packets_sent=io.packets_sent,
+                packets_recv=io.packets_recv,
+                errin=io.errin,
+                errout=io.errout,
+                dropin=io.dropin,
+                dropout=io.dropout,
+                addresses=addrs,
+            )
+        )
+
+    states: dict[str, int] = {}
+    total_conns = 0
+    try:
+        conns = psutil.net_connections(kind="inet")
+        total_conns = len(conns)
+        for c in conns:
+            status = c.status or "NONE"
+            states[status] = states.get(status, 0) + 1
+    except (psutil.AccessDenied, PermissionError):
+        # Fall back if process doesn't have privileges to read all sockets
+        states = {"RESTRICTED": 1}
+
+    return NetworkStatsResponse(
+        interfaces=interfaces,
+        total_connections=total_conns,
+        connection_states=states,
+    )
