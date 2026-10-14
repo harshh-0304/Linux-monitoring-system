@@ -152,7 +152,8 @@ _OPEN_PATHS = {"/", "/readyz", "/docs", "/openapi.json", "/redoc"}
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    if not _API_KEY or request.url.path in _OPEN_PATHS:
+    # Allow CORS preflight requests and open paths without API key
+    if request.method == "OPTIONS" or not _API_KEY or request.url.path in _OPEN_PATHS:
         return await call_next(request)
     key = request.headers.get("X-API-Key", "")
     if key != _API_KEY:
