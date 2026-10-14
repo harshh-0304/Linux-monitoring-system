@@ -16,10 +16,14 @@ When you run this app, FastAPI auto-generates interactive API docs at:
 
 import logging
 import os
+import platform
+import socket
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import psutil
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -87,6 +91,20 @@ class StatsResponse(BaseModel):
     avg_disk_percent: float
     snapshot_count: int
     period_hours: int
+
+
+class SystemInfoResponse(BaseModel):
+    hostname: str
+    os_name: str
+    os_version: str
+    kernel: str
+    architecture: str
+    python_version: str
+    cpu_count_logical: int
+    cpu_count_physical: int
+    total_ram_mb: float
+    boot_time: str
+    uptime_seconds: float
 
 
 # --- Lifespan: startup and shutdown logic ---
@@ -356,4 +374,34 @@ async def send_test_alert():
     return JSONResponse(
         status_code=503,
         content={"status": "failed", "message": "Could not send alert — check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your .env file"},
+    )
+
+
+@app.get(
+    "/system/info",
+    response_model=SystemInfoResponse,
+    summary="Get system hardware and host metadata",
+)
+def get_system_info():
+    """
+    Return static host environment details and hardware specs:
+    OS distribution, kernel version, CPU cores, uptime, and total RAM.
+    """
+    boot_timestamp = psutil.boot_time()
+    boot_dt = datetime.fromtimestamp(boot_timestamp, tz=timezone.utc)
+    uptime = time.time() - boot_timestamp
+    ram = psutil.virtual_memory()
+
+    return SystemInfoResponse(
+        hostname=socket.gethostname(),
+        os_name=platform.system(),
+        os_version=platform.version() or platform.platform(),
+        kernel=platform.release(),
+        architecture=platform.machine(),
+        python_version=platform.python_version(),
+        cpu_count_logical=psutil.cpu_count(logical=True) or 1,
+        cpu_count_physical=psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True) or 1,
+        total_ram_mb=round(ram.total / (1024 ** 2), 2),
+        boot_time=boot_dt.isoformat(),
+        uptime_seconds=round(uptime, 1),
     )
