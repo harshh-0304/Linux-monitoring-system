@@ -118,6 +118,16 @@ class ProcessInfo(BaseModel):
     cmdline: Optional[str] = None
 
 
+class DiskPartitionInfo(BaseModel):
+    device: str
+    mountpoint: str
+    fstype: str
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    percent: float
+
+
 # --- Lifespan: startup and shutdown logic ---
 
 @asynccontextmanager
@@ -460,3 +470,37 @@ def get_top_processes(
     sort_key = "cpu_percent" if sort_by == "cpu" else "memory_percent"
     procs.sort(key=lambda x: getattr(x, sort_key), reverse=True)
     return procs[:limit]
+
+
+@app.get(
+    "/system/disks",
+    response_model=list[DiskPartitionInfo],
+    summary="Get multi-partition filesystem storage breakdown",
+)
+def get_disk_partitions():
+    """
+    Scan mounted filesystems and report mountpoint, filesystem type,
+    used, free, and total capacity in GB.
+    """
+    partitions = []
+    seen_mounts = set()
+    for part in psutil.disk_partitions(all=False):
+        if part.mountpoint in seen_mounts:
+            continue
+        seen_mounts.add(part.mountpoint)
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            partitions.append(
+                DiskPartitionInfo(
+                    device=part.device,
+                    mountpoint=part.mountpoint,
+                    fstype=part.fstype,
+                    total_gb=round(usage.total / (1024 ** 3), 2),
+                    used_gb=round(usage.used / (1024 ** 3), 2),
+                    free_gb=round(usage.free / (1024 ** 3), 2),
+                    percent=usage.percent,
+                )
+            )
+        except (PermissionError, OSError):
+            continue
+    return partitions
