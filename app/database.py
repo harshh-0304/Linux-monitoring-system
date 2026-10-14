@@ -17,18 +17,37 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, 
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
+from sqlalchemy import event
+
 # --- Database connection setup ---
 
-# The database lives at /data/metrics.db inside the container.
-# We read the path from an env var so it's easy to change without code edits.
-DB_PATH = os.getenv("DATABASE_URL", "")
+# Read DATABASE_URL from env; default to local SQLite if unspecified
+DB_PATH = os.getenv("DATABASE_URL") or "sqlite:///./metrics.db"
 
-# connect_args={"check_same_thread": False} is required for SQLite when used
-# with FastAPI because FastAPI handles requests on multiple threads.
-engine = create_engine(
-    DB_PATH,
-    pool_pre_ping=True,  # reconnect automatically if the connection was dropped
-)
+connect_args = {}
+engine_kwargs = {"pool_pre_ping": True}
+
+if DB_PATH.startswith("sqlite"):
+    connect_args = {"check_same_thread": False, "timeout": 30}
+    engine_kwargs["connect_args"] = connect_args
+else:
+    # Connection pooling configurations for PostgreSQL
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "10"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+
+engine = create_engine(DB_PATH, **engine_kwargs)
+
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enable Write-Ahead Logging (WAL) and synchronous mode on SQLite connections."""
+    if DB_PATH.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
 
 # SessionLocal is a factory. Each call to SessionLocal() creates a new session.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
