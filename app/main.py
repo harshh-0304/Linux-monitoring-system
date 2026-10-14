@@ -87,6 +87,16 @@ class AlertResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AlertStatsResponse(BaseModel):
+    total_alerts: int
+    open_alerts: int
+    resolved_alerts: int
+    critical_alerts: int
+    warning_alerts: int
+    alert_types_breakdown: dict[str, int]
+    period_hours: int
+
+
 class StatsResponse(BaseModel):
     avg_cpu_percent: float
     min_cpu_percent: float
@@ -498,6 +508,43 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(alert)
     return alert
+
+
+@app.get(
+    "/alerts/stats",
+    response_model=AlertStatsResponse,
+    summary="Get alert triage and distribution statistics",
+)
+def get_alert_stats(
+    hours: int = Query(default=24, ge=1, le=168),
+    db: Session = Depends(get_db),
+):
+    """
+    Return high-level summary of triggered alerts, resolution rate,
+    and frequency breakdown by severity and alert category.
+    """
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    alerts = db.query(Alert).filter(Alert.timestamp >= since).all()
+
+    total = len(alerts)
+    resolved = sum(1 for a in alerts if a.is_resolved)
+    open_count = total - resolved
+    critical = sum(1 for a in alerts if a.severity == "critical")
+    warning = sum(1 for a in alerts if a.severity == "warning")
+
+    breakdown: dict[str, int] = {}
+    for a in alerts:
+        breakdown[a.alert_type] = breakdown.get(a.alert_type, 0) + 1
+
+    return AlertStatsResponse(
+        total_alerts=total,
+        open_alerts=open_count,
+        resolved_alerts=resolved,
+        critical_alerts=critical,
+        warning_alerts=warning,
+        alert_types_breakdown=breakdown,
+        period_hours=hours,
+    )
 
 
 @app.post("/metrics/collect", summary="Manually trigger a metric collection")
