@@ -35,6 +35,14 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 # Example: if CPU is high for 30 minutes, only 2 alerts fire instead of 30.
 ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "900"))
 
+# Threshold limits (configurable via environment variables)
+CPU_WARN_THRESHOLD = float(os.getenv("CPU_WARN_THRESHOLD", "80.0"))
+CPU_CRIT_THRESHOLD = float(os.getenv("CPU_CRIT_THRESHOLD", "95.0"))
+RAM_WARN_THRESHOLD = float(os.getenv("RAM_WARN_THRESHOLD", "85.0"))
+RAM_CRIT_THRESHOLD = float(os.getenv("RAM_CRIT_THRESHOLD", "95.0"))
+DISK_WARN_THRESHOLD = float(os.getenv("DISK_WARN_THRESHOLD", "85.0"))
+DISK_CRIT_THRESHOLD = float(os.getenv("DISK_CRIT_THRESHOLD", "95.0"))
+
 # In-memory cooldown tracker: alert_type → last time an alert was successfully sent.
 # This resets on container restart, which is acceptable — a fresh start should alert.
 _alert_cooldowns: dict[str, datetime] = {}
@@ -213,45 +221,45 @@ def check_thresholds(metrics: dict) -> list[dict]:
     alerts = []
 
     # CPU thresholds
-    if metrics["cpu_percent"] >= 95:
+    if metrics["cpu_percent"] >= CPU_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "cpu_critical",
             "severity": "critical",
-            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: 95%)",
+            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: {CPU_CRIT_THRESHOLD}%)",
         })
-    elif metrics["cpu_percent"] >= 80:
+    elif metrics["cpu_percent"] >= CPU_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "cpu_high",
             "severity": "warning",
-            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: 80%)",
+            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: {CPU_WARN_THRESHOLD}%)",
         })
 
     # RAM thresholds
-    if metrics["ram_percent"] >= 95:
+    if metrics["ram_percent"] >= RAM_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "ram_critical",
             "severity": "critical",
-            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used)",
+            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used, threshold: {RAM_CRIT_THRESHOLD}%)",
         })
-    elif metrics["ram_percent"] >= 85:
+    elif metrics["ram_percent"] >= RAM_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "ram_high",
             "severity": "warning",
-            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used)",
+            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used, threshold: {RAM_WARN_THRESHOLD}%)",
         })
 
     # Disk thresholds
-    if metrics["disk_percent"] >= 95:
+    if metrics["disk_percent"] >= DISK_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "disk_critical",
             "severity": "critical",
-            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB)",
+            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB, threshold: {DISK_CRIT_THRESHOLD}%)",
         })
-    elif metrics["disk_percent"] >= 85:
+    elif metrics["disk_percent"] >= DISK_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "disk_high",
             "severity": "warning",
-            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB)",
+            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB, threshold: {DISK_WARN_THRESHOLD}%)",
         })
 
     return alerts
