@@ -7,6 +7,9 @@ export interface MetricSnapshot {
   ram_total_mb: number;
   ram_used_mb: number;
   ram_percent: number; // 0–100
+  swap_total_mb?: number;
+  swap_used_mb?: number;
+  swap_percent?: number;
   disk_total_gb: number;
   disk_used_gb: number;
   disk_percent: number; // 0–100
@@ -20,10 +23,16 @@ export interface MetricSnapshot {
 // ── StatsResponse — returned by GET /metrics/stats ──
 export interface StatsResponse {
   avg_cpu_percent: number;
+  min_cpu_percent: number;
   max_cpu_percent: number;
   avg_ram_percent: number;
+  min_ram_percent: number;
   max_ram_percent: number;
   avg_disk_percent: number;
+  min_disk_percent: number;
+  max_disk_percent: number;
+  total_net_sent_mb: number;
+  total_net_recv_mb: number;
   snapshot_count: number;
   period_hours: number;
 }

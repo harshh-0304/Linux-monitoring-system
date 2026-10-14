@@ -7,6 +7,18 @@ export interface Alert {
   message: string;
   ai_analysis: string | null;
   telegram_sent: TelegramStatus;
+  is_resolved?: boolean;
+  resolved_at?: string | null;
+}
+
+export interface AlertStats {
+  total_alerts: number;
+  open_alerts: number;
+  resolved_alerts: number;
+  critical_alerts: number;
+  warning_alerts: number;
+  alert_types_breakdown: Record<string, number>;
+  period_hours: number;
 }
 
 export type AlertType =
