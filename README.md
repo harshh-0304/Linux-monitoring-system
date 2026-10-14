@@ -45,15 +45,22 @@ Your Linux Server
 
 FastAPI (port 8000)
   |
-  ├── GET  /                    health check (no auth)
-  ├── GET  /readyz              readiness check (no auth)
-  ├── GET  /metrics/current     live metrics from OS
-  ├── GET  /metrics             historical data from DB
-  ├── GET  /metrics/stats       aggregated stats (avg/max)
-  ├── GET  /alerts              alert history from DB
-  ├── POST /metrics/collect     trigger manual collection
-  ├── POST /ai/analyze          trigger manual AI analysis
-  └── POST /alerts/test         send test Telegram message
+  ├── GET   /                    health check (no auth)
+  ├── GET   /readyz              readiness check (no auth)
+  ├── GET   /system/info         host OS, CPU cores, uptime, specs
+  ├── GET   /system/processes    live top processes (CPU / RAM sorted)
+  ├── GET   /system/disks        mounted partitions & disk usage
+  ├── GET   /system/network      per-interface metrics & socket states
+  ├── GET   /metrics/current     live metrics from OS
+  ├── GET   /metrics             historical snapshots from DB
+  ├── GET   /metrics/stats       aggregated stats (avg/min/max/network)
+  ├── GET   /metrics/export      export snapshot history (CSV / JSON)
+  ├── GET   /alerts              alert history with resolved filter
+  ├── GET   /alerts/stats        alert triage & category distribution
+  ├── PATCH /alerts/{id}/resolve mark alert as resolved
+  ├── POST  /metrics/collect     trigger manual collection
+  ├── POST  /ai/analyze          trigger manual AI analysis
+  └── POST  /alerts/test         send test notification (Telegram/Slack/Discord)
 ```
 
 ---
@@ -261,17 +268,34 @@ Replace `YOUR_API_KEY` with your actual key in all requests below.
 # Live metrics (reads from OS right now)
 curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/metrics/current
 
-# Force a metric collection (saves to DB)
-curl -X POST -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/metrics/collect
+# System info & hardware specs
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/system/info
+
+# Top running processes (sorted by CPU or memory)
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/system/processes?sort_by=cpu&limit=5"
+
+# Multi-partition mounted filesystems
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/system/disks
+
+# Network interfaces and socket states
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/system/network
 
 # Historical metrics (last 1 hour, up to 10 rows)
 curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/metrics?hours=1&limit=10"
 
-# Aggregated stats (last 24 hours)
+# Aggregated stats (last 24 hours, includes min/max/averages and network total)
 curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/metrics/stats?hours=24"
 
-# Alert history
+# Export metrics as CSV or JSON
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/metrics/export?format=csv" -o metrics.csv
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/metrics/export?format=json" -o metrics.json
+
+# Alert history and alert triage statistics
 curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/alerts
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/alerts/stats
+
+# Resolve an alert
+curl -X PATCH -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/alerts/1/resolve
 
 # Trigger AI analysis manually
 curl -X POST -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/ai/analyze
@@ -285,28 +309,43 @@ http://localhost:8000/docs
 
 ---
 
+## Running the Automated Test Suite
+
+The system includes 24 comprehensive unit and integration tests covering database lifecycles, collector rates, rule thresholds, alert deduplication, API endpoints, and AI parsers:
+
+```bash
+# Run all tests
+pytest tests/ -v
+```
+
+---
+
 ## File Structure
 
 ```
 linux-monitoring/
+├── .github/
+│   └── workflows/ci.yml    Automated GitHub Actions CI workflow
 ├── app/
 │   ├── __init__.py         Package marker
-│   ├── database.py         SQLAlchemy models + DB connection (PostgreSQL)
-│   ├── collector.py        psutil metric collection
-│   ├── alerting.py         Telegram alerts + cooldown deduplication
-│   ├── ai_analyzer.py      Google Gemini anomaly detection
+│   ├── database.py         SQLAlchemy models + SQLite WAL / Postgres pooling
+│   ├── collector.py        psutil metric collection (CPU, RAM, Swap, Disk, Net)
+│   ├── alerting.py         Multi-channel alerts (Telegram, Slack, Discord)
+│   ├── ai_analyzer.py      Gemini anomaly detection with confidence scoring
 │   ├── scheduler.py        APScheduler background jobs
-│   └── main.py             FastAPI routes + API key auth middleware
-├── alembic/
-│   ├── env.py              Alembic migration environment config
-│   └── versions/           Auto-generated migration files
-├── alembic.ini             Alembic config file
+│   └── main.py             FastAPI routes + CORS + auth middleware
+├── tests/
+│   ├── test_database.py    Database models and session tests
+│   ├── test_collector.py   psutil collection and network rate tests
+│   ├── test_alerting.py    Threshold checks and cooldown tests
+│   ├── test_api.py         FastAPI route integration tests
+│   └── test_ai_analyzer.py AI prompt and parsing tests
+├── monitoring-dashboard/   Next.js 15 React dashboard frontend
+├── alembic/                Database migrations
 ├── Dockerfile              Container build instructions
-├── docker-compose.yml      Docker Compose alternative to docker run
+├── docker-compose.yml      Docker Compose stack
 ├── requirements.txt        Python dependencies
-├── .env.example            Template for environment variables
-├── .env                    Your actual secrets (never commit this)
-└── .gitignore              Prevents .env from being committed to git
+└── README.md               Project documentation
 ```
 
 ---
