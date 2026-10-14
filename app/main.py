@@ -14,6 +14,8 @@ When you run this app, FastAPI auto-generates interactive API docs at:
   http://localhost:8000/redoc  (ReDoc)
 """
 
+import csv
+import io
 import logging
 import os
 import platform
@@ -25,7 +27,7 @@ from typing import Optional
 
 import psutil
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -369,6 +371,85 @@ def get_stats(
         total_net_recv_mb=total_net_recv_mb,
         snapshot_count=result.count,
         period_hours=hours,
+    )
+
+
+@app.get("/metrics/export", summary="Export metrics snapshots to CSV or JSON")
+def export_metrics(
+    hours: int = Query(default=24, ge=1, le=168, description="Timeframe to export"),
+    format: str = Query(default="csv", pattern="^(csv|json)$", description="Export format: 'csv' or 'json'"),
+    db: Session = Depends(get_db),
+):
+    """
+    Download historical system metrics formatted as CSV or JSON file
+    for external spreadsheets, incident audits, or archiving.
+    """
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    snapshots = (
+        db.query(MetricSnapshot)
+        .filter(MetricSnapshot.timestamp >= since)
+        .order_by(MetricSnapshot.timestamp.asc())
+        .all()
+    )
+
+    timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    if format == "json":
+        data = [
+            {
+                "id": s.id,
+                "timestamp": s.timestamp.isoformat(),
+                "cpu_percent": s.cpu_percent,
+                "cpu_count": s.cpu_count,
+                "ram_total_mb": s.ram_total_mb,
+                "ram_used_mb": s.ram_used_mb,
+                "ram_percent": s.ram_percent,
+                "disk_total_gb": s.disk_total_gb,
+                "disk_used_gb": s.disk_used_gb,
+                "disk_percent": s.disk_percent,
+                "net_bytes_sent": s.net_bytes_sent,
+                "net_bytes_recv": s.net_bytes_recv,
+                "load_avg_1": s.load_avg_1,
+                "load_avg_5": s.load_avg_5,
+                "load_avg_15": s.load_avg_15,
+            }
+            for s in snapshots
+        ]
+        return JSONResponse(
+            content=data,
+            headers={"Content-Disposition": f"attachment; filename=metrics_{timestamp_str}.json"},
+        )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "timestamp", "cpu_percent", "cpu_count", "ram_total_mb", "ram_used_mb",
+        "ram_percent", "disk_total_gb", "disk_used_gb", "disk_percent",
+        "net_bytes_sent", "net_bytes_recv", "load_avg_1", "load_avg_5", "load_avg_15"
+    ])
+
+    for s in snapshots:
+        writer.writerow([
+            s.timestamp.isoformat(),
+            s.cpu_percent,
+            s.cpu_count,
+            s.ram_total_mb,
+            s.ram_used_mb,
+            s.ram_percent,
+            s.disk_total_gb,
+            s.disk_used_gb,
+            s.disk_percent,
+            s.net_bytes_sent,
+            s.net_bytes_recv,
+            s.load_avg_1,
+            s.load_avg_5,
+            s.load_avg_15,
+        ])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=metrics_{timestamp_str}.csv"},
     )
 
 
