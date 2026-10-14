@@ -85,10 +85,16 @@ class AlertResponse(BaseModel):
 
 class StatsResponse(BaseModel):
     avg_cpu_percent: float
+    min_cpu_percent: float
     max_cpu_percent: float
     avg_ram_percent: float
+    min_ram_percent: float
     max_ram_percent: float
     avg_disk_percent: float
+    min_disk_percent: float
+    max_disk_percent: float
+    total_net_sent_mb: float
+    total_net_recv_mb: float
     snapshot_count: int
     period_hours: int
 
@@ -329,22 +335,38 @@ def get_stats(
     # SELECT AVG(cpu_percent), MAX(cpu_percent) FROM metric_snapshots WHERE ...
     result = db.query(
         func.avg(MetricSnapshot.cpu_percent).label("avg_cpu"),
+        func.min(MetricSnapshot.cpu_percent).label("min_cpu"),
         func.max(MetricSnapshot.cpu_percent).label("max_cpu"),
         func.avg(MetricSnapshot.ram_percent).label("avg_ram"),
+        func.min(MetricSnapshot.ram_percent).label("min_ram"),
         func.max(MetricSnapshot.ram_percent).label("max_ram"),
         func.avg(MetricSnapshot.disk_percent).label("avg_disk"),
+        func.min(MetricSnapshot.disk_percent).label("min_disk"),
+        func.max(MetricSnapshot.disk_percent).label("max_disk"),
+        func.sum(MetricSnapshot.net_bytes_sent).label("sum_net_sent"),
+        func.sum(MetricSnapshot.net_bytes_recv).label("sum_net_recv"),
         func.count(MetricSnapshot.id).label("count"),
     ).filter(MetricSnapshot.timestamp >= since).first()
 
     if not result or result.count == 0:
         raise HTTPException(status_code=404, detail="No data found for the specified period")
 
+    # Bytes per second summed across collection cycles to approximate total volume in MB
+    total_net_sent_mb = round(((result.sum_net_sent or 0.0) * 60) / (1024 ** 2), 2)
+    total_net_recv_mb = round(((result.sum_net_recv or 0.0) * 60) / (1024 ** 2), 2)
+
     return StatsResponse(
         avg_cpu_percent=round(result.avg_cpu or 0, 2),
+        min_cpu_percent=round(result.min_cpu or 0, 2),
         max_cpu_percent=round(result.max_cpu or 0, 2),
         avg_ram_percent=round(result.avg_ram or 0, 2),
+        min_ram_percent=round(result.min_ram or 0, 2),
         max_ram_percent=round(result.max_ram or 0, 2),
         avg_disk_percent=round(result.avg_disk or 0, 2),
+        min_disk_percent=round(result.min_disk or 0, 2),
+        max_disk_percent=round(result.max_disk or 0, 2),
+        total_net_sent_mb=total_net_sent_mb,
+        total_net_recv_mb=total_net_recv_mb,
         snapshot_count=result.count,
         period_hours=hours,
     )
