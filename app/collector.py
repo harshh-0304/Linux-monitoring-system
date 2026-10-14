@@ -53,12 +53,17 @@ def collect_metrics() -> dict:
         # Windows doesn't support getloadavg
         load_avg = (None, None, None)
 
-    # --- Memory ---
+    # --- Memory & Swap ---
     ram = psutil.virtual_memory()
     # psutil gives bytes, we convert to MB for readability
     ram_total_mb = ram.total / (1024 ** 2)
     ram_used_mb = ram.used / (1024 ** 2)
     ram_percent = ram.percent
+
+    swap = psutil.swap_memory()
+    swap_total_mb = swap.total / (1024 ** 2)
+    swap_used_mb = swap.used / (1024 ** 2)
+    swap_percent = swap.percent
 
     # --- Disk (root partition) ---
     disk = psutil.disk_usage("/")
@@ -93,6 +98,9 @@ def collect_metrics() -> dict:
         "ram_total_mb": round(ram_total_mb, 2),
         "ram_used_mb": round(ram_used_mb, 2),
         "ram_percent": round(ram_percent, 2),
+        "swap_total_mb": round(swap_total_mb, 2),
+        "swap_used_mb": round(swap_used_mb, 2),
+        "swap_percent": round(swap_percent, 2),
         "disk_total_gb": round(disk_total_gb, 2),
         "disk_used_gb": round(disk_used_gb, 2),
         "disk_percent": round(disk_percent, 2),

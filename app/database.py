@@ -77,6 +77,11 @@ class MetricSnapshot(Base):
     ram_used_mb = Column(Float, nullable=False)
     ram_percent = Column(Float, nullable=False)        # 0.0 – 100.0
 
+    # Swap
+    swap_total_mb = Column(Float, nullable=True, default=0.0)
+    swap_used_mb = Column(Float, nullable=True, default=0.0)
+    swap_percent = Column(Float, nullable=True, default=0.0)
+
     # Disk (root partition)
     disk_total_gb = Column(Float, nullable=False)
     disk_used_gb = Column(Float, nullable=False)

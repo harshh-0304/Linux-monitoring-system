@@ -59,6 +59,9 @@ class MetricResponse(BaseModel):
     ram_total_mb: float
     ram_used_mb: float
     ram_percent: float
+    swap_total_mb: Optional[float] = 0.0
+    swap_used_mb: Optional[float] = 0.0
+    swap_percent: Optional[float] = 0.0
     disk_total_gb: float
     disk_used_gb: float
     disk_percent: float
