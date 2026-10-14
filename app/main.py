@@ -107,6 +107,17 @@ class SystemInfoResponse(BaseModel):
     uptime_seconds: float
 
 
+class ProcessInfo(BaseModel):
+    pid: int
+    name: str
+    username: Optional[str] = None
+    cpu_percent: float
+    memory_percent: float
+    status: str
+    create_time: Optional[str] = None
+    cmdline: Optional[str] = None
+
+
 # --- Lifespan: startup and shutdown logic ---
 
 @asynccontextmanager
@@ -405,3 +416,47 @@ def get_system_info():
         boot_time=boot_dt.isoformat(),
         uptime_seconds=round(uptime, 1),
     )
+
+
+@app.get(
+    "/system/processes",
+    response_model=list[ProcessInfo],
+    summary="Get top running processes by CPU or memory usage",
+)
+def get_top_processes(
+    sort_by: str = Query(default="cpu", pattern="^(cpu|memory)$", description="Sort by 'cpu' or 'memory'"),
+    limit: int = Query(default=10, ge=1, le=50, description="Max number of processes to return"),
+):
+    """
+    List top active system processes sorted by CPU or memory consumption.
+    Useful for identifying resource bottlenecks and runaway workloads.
+    """
+    procs = []
+    for p in psutil.process_iter(["pid", "name", "username", "cpu_percent", "memory_percent", "status", "create_time", "cmdline"]):
+        try:
+            info = p.info
+            cmdline = " ".join(info.get("cmdline") or [])
+            if len(cmdline) > 120:
+                cmdline = cmdline[:117] + "..."
+            created = ""
+            if info.get("create_time"):
+                created = datetime.fromtimestamp(info["create_time"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+            procs.append(
+                ProcessInfo(
+                    pid=info["pid"],
+                    name=info.get("name") or "unknown",
+                    username=info.get("username"),
+                    cpu_percent=round(info.get("cpu_percent") or 0.0, 2),
+                    memory_percent=round(info.get("memory_percent") or 0.0, 2),
+                    status=info.get("status") or "running",
+                    create_time=created or None,
+                    cmdline=cmdline or None,
+                )
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+
+    sort_key = "cpu_percent" if sort_by == "cpu" else "memory_percent"
+    procs.sort(key=lambda x: getattr(x, sort_key), reverse=True)
+    return procs[:limit]
