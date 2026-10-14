@@ -81,6 +81,8 @@ class AlertResponse(BaseModel):
     message: str
     ai_analysis: Optional[str]
     telegram_sent: str
+    is_resolved: bool = False
+    resolved_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -461,6 +463,7 @@ def export_metrics(
 def get_alerts(
     hours: int = Query(default=24, ge=1, le=168),
     severity: Optional[str] = Query(default=None, description="Filter by severity: warning or critical"),
+    resolved: Optional[bool] = Query(default=None, description="Filter by resolution status"),
     db: Session = Depends(get_db),
 ):
     """Return the alert history for the specified time period."""
@@ -472,7 +475,29 @@ def get_alerts(
     )
     if severity:
         query = query.filter(Alert.severity == severity)
+    if resolved is not None:
+        query = query.filter(Alert.is_resolved == resolved)
     return query.limit(100).all()
+
+
+@app.patch(
+    "/alerts/{alert_id}/resolve",
+    response_model=AlertResponse,
+    summary="Mark an alert as resolved",
+)
+def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
+    """
+    Mark an active or triggered alert as resolved, recording the timestamp.
+    """
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    alert.is_resolved = True
+    alert.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
 @app.post("/metrics/collect", summary="Manually trigger a metric collection")

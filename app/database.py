@@ -13,7 +13,7 @@ SQLAlchemy generates the correct INSERT SQL automatically.
 import os
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, Index
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, Index, Boolean
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -102,8 +102,13 @@ class Alert(Base):
     # Whether we successfully sent the Telegram notification
     telegram_sent = Column(String(8), default="pending")
 
+    # Resolution tracking
+    is_resolved = Column(Boolean, default=False, nullable=False)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+
     __table_args__ = (
         Index("ix_alerts_timestamp", "timestamp"),
+        Index("ix_alerts_resolved", "is_resolved"),
     )
 
 
