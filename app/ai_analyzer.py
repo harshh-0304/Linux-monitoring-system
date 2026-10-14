@@ -91,6 +91,8 @@ Analyze these metrics and respond in this exact format:
 
 ANOMALY_DETECTED: [YES/NO]
 SEVERITY: [NONE/WARNING/CRITICAL]
+RISK_LEVEL: [LOW/MEDIUM/HIGH/CRITICAL]
+CONFIDENCE_SCORE: [0-100]
 SUMMARY: [One sentence describing what you see]
 ANALYSIS: [2-3 sentences explaining the trend, what might be causing it, and what to investigate]
 RECOMMENDED_ACTION: [Specific Linux commands or steps to investigate/fix]
@@ -124,6 +126,8 @@ def analyze_metrics(db: Session | None = None) -> dict:
     default = {
         "anomaly_detected": False,
         "severity": "none",
+        "risk_level": "low",
+        "confidence_score": 95,
         "summary": "AI analysis unavailable",
         "analysis": "",
         "recommended_action": "",
@@ -179,31 +183,52 @@ def _parse_ai_response(text: str) -> dict:
     """
     Parse Gemini's structured response into a Python dict.
 
-    We use simple line-by-line parsing because the format is predictable.
+    We use robust line-by-line parsing that handles potential markdown bolding (**KEY:**).
     If Gemini goes off-format, we fall back to safe defaults.
     """
     result = {
         "anomaly_detected": False,
         "severity": "none",
+        "risk_level": "low",
+        "confidence_score": 90,
         "summary": "",
         "analysis": "",
         "recommended_action": "",
     }
 
     for line in text.strip().splitlines():
-        line = line.strip()
-        if line.startswith("ANOMALY_DETECTED:"):
-            val = line.split(":", 1)[1].strip().upper()
+        # Strip potential markdown formatting like **KEY:**
+        clean_line = line.strip().replace("**", "")
+        if clean_line.startswith("ANOMALY_DETECTED:"):
+            val = clean_line.split(":", 1)[1].strip().upper()
             result["anomaly_detected"] = val == "YES"
-        elif line.startswith("SEVERITY:"):
-            val = line.split(":", 1)[1].strip().lower()
+        elif clean_line.startswith("SEVERITY:"):
+            val = clean_line.split(":", 1)[1].strip().lower()
             if val in ("none", "warning", "critical"):
                 result["severity"] = val
-        elif line.startswith("SUMMARY:"):
-            result["summary"] = line.split(":", 1)[1].strip()
-        elif line.startswith("ANALYSIS:"):
-            result["analysis"] = line.split(":", 1)[1].strip()
-        elif line.startswith("RECOMMENDED_ACTION:"):
-            result["recommended_action"] = line.split(":", 1)[1].strip()
+        elif clean_line.startswith("RISK_LEVEL:"):
+            val = clean_line.split(":", 1)[1].strip().lower()
+            if val in ("low", "medium", "high", "critical"):
+                result["risk_level"] = val
+        elif clean_line.startswith("CONFIDENCE_SCORE:"):
+            val = clean_line.split(":", 1)[1].strip().rstrip("%")
+            try:
+                score = int(float(val))
+                result["confidence_score"] = max(0, min(100, score))
+            except ValueError:
+                pass
+        elif clean_line.startswith("SUMMARY:"):
+            result["summary"] = clean_line.split(":", 1)[1].strip()
+        elif clean_line.startswith("ANALYSIS:"):
+            result["analysis"] = clean_line.split(":", 1)[1].strip()
+        elif clean_line.startswith("RECOMMENDED_ACTION:"):
+            result["recommended_action"] = clean_line.split(":", 1)[1].strip()
+
+    # Harmonize risk_level if not explicitly set
+    if result["risk_level"] == "low":
+        if result["severity"] == "critical":
+            result["risk_level"] = "critical"
+        elif result["severity"] == "warning":
+            result["risk_level"] = "medium"
 
     return result
