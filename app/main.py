@@ -313,6 +313,7 @@ def get_current_metrics():
 def get_metrics(
     hours: int = Query(default=1, ge=1, le=168, description="How many hours of history to return"),
     limit: int = Query(default=100, ge=1, le=1000, description="Max number of records"),
+    offset: int = Query(default=0, ge=0, description="Number of records to skip (pagination)"),
     db: Session = Depends(get_db),
 ):
     """
@@ -321,12 +322,14 @@ def get_metrics(
     Query parameters:
     - **hours**: How far back to look (1–168 hours = up to 1 week)
     - **limit**: Maximum rows to return (1–1000)
+    - **offset**: Rows to skip, for paging through large result sets
     """
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     snapshots = (
         db.query(MetricSnapshot)
         .filter(MetricSnapshot.timestamp >= since)
         .order_by(desc(MetricSnapshot.timestamp))
+        .offset(offset)
         .limit(limit)
         .all()
     )
@@ -502,6 +505,8 @@ def get_alerts(
     hours: int = Query(default=24, ge=1, le=168),
     severity: Optional[str] = Query(default=None, description="Filter by severity: warning or critical"),
     resolved: Optional[bool] = Query(default=None, description="Filter by resolution status"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Max number of records"),
+    offset: int = Query(default=0, ge=0, description="Number of records to skip (pagination)"),
     db: Session = Depends(get_db),
 ):
     """Return the alert history for the specified time period."""
@@ -515,7 +520,7 @@ def get_alerts(
         query = query.filter(Alert.severity == severity)
     if resolved is not None:
         query = query.filter(Alert.is_resolved == resolved)
-    return query.limit(100).all()
+    return query.offset(offset).limit(limit).all()
 
 
 @app.patch(

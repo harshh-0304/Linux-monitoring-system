@@ -177,6 +177,30 @@ def test_metrics_hours_out_of_range_422(seeded_client):
     assert seeded_client.get("/metrics?hours=999").status_code == 422
 
 
+# --- pagination (offset) ---
+
+def test_metrics_offset_pagination(seeded_client):
+    # Only one snapshot seeded: offset past it yields an empty page.
+    first = seeded_client.get("/metrics?hours=1&limit=1&offset=0")
+    assert first.status_code == 200
+    assert len(first.json()) == 1
+    assert seeded_client.get("/metrics?hours=1&offset=1").json() == []
+
+
+def test_alerts_offset_pagination(seeded_client):
+    # Two alerts seeded: limit=1 returns one, offset walks to the next, offset=2 empties.
+    page1 = seeded_client.get("/alerts?hours=24&limit=1&offset=0").json()
+    page2 = seeded_client.get("/alerts?hours=24&limit=1&offset=1").json()
+    assert len(page1) == 1 and len(page2) == 1
+    assert page1[0]["id"] != page2[0]["id"]
+    assert seeded_client.get("/alerts?hours=24&offset=2").json() == []
+
+
+def test_negative_offset_422(seeded_client):
+    assert seeded_client.get("/metrics?offset=-1").status_code == 422
+    assert seeded_client.get("/alerts?offset=-1").status_code == 422
+
+
 # --- /alerts filters ---
 
 def test_alerts_severity_filter(seeded_client):
