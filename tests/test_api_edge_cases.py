@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db, MetricSnapshot, Alert
-from app.main import app
+from app.main import app, _resolve_allowed_origins, _DEFAULT_ORIGINS
 
 
 def _make_engine():
@@ -88,6 +88,18 @@ def seeded_client():
         yield client
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
+
+
+# --- CORS allowed-origins resolution ---
+
+def test_allowed_origins_defaults_only():
+    assert _resolve_allowed_origins("") == _DEFAULT_ORIGINS
+    assert _resolve_allowed_origins(None) == _DEFAULT_ORIGINS
+
+
+def test_allowed_origins_appends_and_trims_extras():
+    result = _resolve_allowed_origins(" https://a.com , https://b.com ,")
+    assert result == _DEFAULT_ORIGINS + ["https://a.com", "https://b.com"]
 
 
 # --- /readyz ---

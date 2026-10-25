@@ -209,15 +209,28 @@ app = FastAPI(
 )
 
 # ── CORS middleware ──
-# Allow the Next.js frontend (localhost:3000) to call the API
+# Allow the Next.js frontend to call the API. Defaults cover local dev and the
+# deployed dashboards; extend via ALLOWED_ORIGINS (comma-separated) without a
+# code change when deploying to a new domain.
+_DEFAULT_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://monitoring-dashboard-production-eb4c.up.railway.app",
+    "https://resilient-perfection-production-3d3e.up.railway.app",
+]
+
+
+def _resolve_allowed_origins(env_value: str) -> list[str]:
+    """Merge the built-in default origins with comma-separated extras from env."""
+    extra = [o.strip() for o in (env_value or "").split(",") if o.strip()]
+    return _DEFAULT_ORIGINS + extra
+
+
+_allowed_origins = _resolve_allowed_origins(os.getenv("ALLOWED_ORIGINS", ""))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://monitoring-dashboard-production-eb4c.up.railway.app",
-        "https://resilient-perfection-production-3d3e.up.railway.app",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
