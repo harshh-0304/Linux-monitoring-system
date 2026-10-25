@@ -368,9 +368,11 @@ def get_stats(
     if not result or result.count == 0:
         raise HTTPException(status_code=404, detail="No data found for the specified period")
 
-    # Bytes per second summed across collection cycles to approximate total volume in MB
-    total_net_sent_mb = round(((result.sum_net_sent or 0.0) * 60) / (1024 ** 2), 2)
-    total_net_recv_mb = round(((result.sum_net_recv or 0.0) * 60) / (1024 ** 2), 2)
+    # Each row stores a bytes/sec rate; multiply by the collection interval to
+    # approximate the bytes moved during that cycle, then sum to a total volume.
+    collect_interval = int(os.getenv("COLLECT_INTERVAL_SECONDS", "60"))
+    total_net_sent_mb = round(((result.sum_net_sent or 0.0) * collect_interval) / (1024 ** 2), 2)
+    total_net_recv_mb = round(((result.sum_net_recv or 0.0) * collect_interval) / (1024 ** 2), 2)
 
     return StatsResponse(
         avg_cpu_percent=round(result.avg_cpu or 0, 2),

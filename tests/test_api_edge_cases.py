@@ -135,6 +135,18 @@ def test_metrics_empty_returns_empty_list(empty_client):
     assert res.json() == []
 
 
+# --- /metrics/stats network volume uses configured interval ---
+
+def test_stats_net_volume_scales_with_interval(monkeypatch, seeded_client):
+    # Seeded snapshot has net_bytes_sent rate = 100.0 bytes/s.
+    # Total volume must scale with COLLECT_INTERVAL_SECONDS, not a hardcoded 60.
+    monkeypatch.setenv("COLLECT_INTERVAL_SECONDS", "3600")
+    res = seeded_client.get("/metrics/stats?hours=1")
+    assert res.status_code == 200
+    expected = round(100.0 * 3600 / (1024 ** 2), 2)  # 0.34
+    assert res.json()["total_net_sent_mb"] == expected
+
+
 # --- query-param validation ---
 
 def test_export_invalid_format_422(seeded_client):
