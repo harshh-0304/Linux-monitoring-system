@@ -334,6 +334,29 @@ def get_metrics(
 
 
 @app.get(
+    "/metrics/latest",
+    response_model=MetricResponse,
+    summary="Get the most recent stored metric snapshot",
+)
+def get_latest_metric(db: Session = Depends(get_db)):
+    """
+    Return the single newest snapshot persisted to the database.
+
+    Unlike /metrics/current (which reads live from the OS), this returns the
+    last value the collector actually stored — useful for dashboards that want
+    the same number shown in history charts without recomputing.
+    """
+    snapshot = (
+        db.query(MetricSnapshot)
+        .order_by(desc(MetricSnapshot.timestamp))
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="No metrics have been collected yet")
+    return snapshot
+
+
+@app.get(
     "/metrics/stats",
     response_model=StatsResponse,
     summary="Get aggregated statistics",

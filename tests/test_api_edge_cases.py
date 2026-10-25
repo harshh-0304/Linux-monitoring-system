@@ -117,6 +117,19 @@ def test_readyz_not_ready_when_metric_stale(monkeypatch, seeded_client):
     assert any("old" in issue for issue in res.json()["issues"])
 
 
+# --- /metrics/latest ---
+
+def test_latest_metric_returns_newest(seeded_client):
+    res = seeded_client.get("/metrics/latest")
+    assert res.status_code == 200
+    assert res.json()["cpu_percent"] == 40.0
+
+
+def test_latest_metric_404_when_empty(empty_client):
+    res = empty_client.get("/metrics/latest")
+    assert res.status_code == 404
+
+
 # --- 404 / empty-data paths ---
 
 def test_stats_404_when_no_data(empty_client):
