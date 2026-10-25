@@ -2,6 +2,7 @@
 Unit tests for alert rule evaluation, message formatting, and cooldown deduplication.
 """
 
+import asyncio
 from datetime import datetime, timezone, timedelta
 import pytest
 
@@ -11,6 +12,9 @@ from app.alerting import (
     _is_on_cooldown,
     _mark_sent,
     _alert_cooldowns,
+    _send_slack_webhook,
+    _send_discord_webhook,
+    send_telegram_alert,
     CPU_WARN_THRESHOLD,
     CPU_CRIT_THRESHOLD,
 )
@@ -68,6 +72,18 @@ def test_check_thresholds_critical():
         assert a["severity"] == "critical"
 
 
+def test_check_thresholds_empty_dict_no_crash():
+    # A missing/partial metrics dict must not raise KeyError.
+    assert check_thresholds({}) == []
+
+
+def test_check_thresholds_partial_dict():
+    # Only CPU present and critical; missing ram/disk keys default to safe values.
+    alerts = check_thresholds({"cpu_percent": CPU_CRIT_THRESHOLD + 1})
+    assert len(alerts) == 1
+    assert alerts[0]["alert_type"] == "cpu_critical"
+
+
 def test_format_message():
     msg = _format_message(
         alert_type="cpu_critical",
@@ -92,3 +108,36 @@ def test_cooldown_deduplication():
     # Simulate expired cooldown
     _alert_cooldowns[alert_type] = datetime.now(timezone.utc) - timedelta(seconds=1000)
     assert _is_on_cooldown(alert_type) is False
+
+
+# --- Notification delivery paths (async, no real network or DB writes) ---
+
+def test_slack_webhook_returns_false_when_unconfigured(monkeypatch):
+    monkeypatch.setattr("app.alerting.SLACK_WEBHOOK_URL", "")
+    assert asyncio.run(_send_slack_webhook("hello")) is False
+
+
+def test_discord_webhook_returns_false_when_unconfigured(monkeypatch):
+    monkeypatch.setattr("app.alerting.DISCORD_WEBHOOK_URL", "")
+    assert asyncio.run(_send_discord_webhook("cpu_high", "warning", "msg")) is False
+
+
+def test_send_alert_no_channels_records_pending(monkeypatch):
+    for name in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "SLACK_WEBHOOK_URL", "DISCORD_WEBHOOK_URL"):
+        monkeypatch.setattr(f"app.alerting.{name}", "")
+    captured = {}
+    monkeypatch.setattr("app.alerting._save_alert", lambda *a: captured.update(status=a[-1]))
+
+    result = asyncio.run(send_telegram_alert("cpu_high", "warning", "msg"))
+    assert result is False
+    assert captured["status"] == "pending"
+
+
+def test_send_alert_suppressed_on_cooldown(monkeypatch):
+    captured = {}
+    monkeypatch.setattr("app.alerting._save_alert", lambda *a: captured.update(status=a[-1]))
+
+    _mark_sent("cpu_high")  # start cooldown
+    result = asyncio.run(send_telegram_alert("cpu_high", "warning", "msg"))
+    assert result is False
+    assert captured["status"] == "suppressed"

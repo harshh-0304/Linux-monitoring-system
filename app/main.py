@@ -209,15 +209,28 @@ app = FastAPI(
 )
 
 # ── CORS middleware ──
-# Allow the Next.js frontend (localhost:3000) to call the API
+# Allow the Next.js frontend to call the API. Defaults cover local dev and the
+# deployed dashboards; extend via ALLOWED_ORIGINS (comma-separated) without a
+# code change when deploying to a new domain.
+_DEFAULT_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://monitoring-dashboard-production-eb4c.up.railway.app",
+    "https://resilient-perfection-production-3d3e.up.railway.app",
+]
+
+
+def _resolve_allowed_origins(env_value: str) -> list[str]:
+    """Merge the built-in default origins with comma-separated extras from env."""
+    extra = [o.strip() for o in (env_value or "").split(",") if o.strip()]
+    return _DEFAULT_ORIGINS + extra
+
+
+_allowed_origins = _resolve_allowed_origins(os.getenv("ALLOWED_ORIGINS", ""))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://monitoring-dashboard-production-eb4c.up.railway.app",
-        "https://resilient-perfection-production-3d3e.up.railway.app",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -313,6 +326,7 @@ def get_current_metrics():
 def get_metrics(
     hours: int = Query(default=1, ge=1, le=168, description="How many hours of history to return"),
     limit: int = Query(default=100, ge=1, le=1000, description="Max number of records"),
+    offset: int = Query(default=0, ge=0, description="Number of records to skip (pagination)"),
     db: Session = Depends(get_db),
 ):
     """
@@ -321,16 +335,41 @@ def get_metrics(
     Query parameters:
     - **hours**: How far back to look (1–168 hours = up to 1 week)
     - **limit**: Maximum rows to return (1–1000)
+    - **offset**: Rows to skip, for paging through large result sets
     """
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     snapshots = (
         db.query(MetricSnapshot)
         .filter(MetricSnapshot.timestamp >= since)
         .order_by(desc(MetricSnapshot.timestamp))
+        .offset(offset)
         .limit(limit)
         .all()
     )
     return snapshots
+
+
+@app.get(
+    "/metrics/latest",
+    response_model=MetricResponse,
+    summary="Get the most recent stored metric snapshot",
+)
+def get_latest_metric(db: Session = Depends(get_db)):
+    """
+    Return the single newest snapshot persisted to the database.
+
+    Unlike /metrics/current (which reads live from the OS), this returns the
+    last value the collector actually stored — useful for dashboards that want
+    the same number shown in history charts without recomputing.
+    """
+    snapshot = (
+        db.query(MetricSnapshot)
+        .order_by(desc(MetricSnapshot.timestamp))
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="No metrics have been collected yet")
+    return snapshot
 
 
 @app.get(
@@ -368,9 +407,11 @@ def get_stats(
     if not result or result.count == 0:
         raise HTTPException(status_code=404, detail="No data found for the specified period")
 
-    # Bytes per second summed across collection cycles to approximate total volume in MB
-    total_net_sent_mb = round(((result.sum_net_sent or 0.0) * 60) / (1024 ** 2), 2)
-    total_net_recv_mb = round(((result.sum_net_recv or 0.0) * 60) / (1024 ** 2), 2)
+    # Each row stores a bytes/sec rate; multiply by the collection interval to
+    # approximate the bytes moved during that cycle, then sum to a total volume.
+    collect_interval = int(os.getenv("COLLECT_INTERVAL_SECONDS", "60"))
+    total_net_sent_mb = round(((result.sum_net_sent or 0.0) * collect_interval) / (1024 ** 2), 2)
+    total_net_recv_mb = round(((result.sum_net_recv or 0.0) * collect_interval) / (1024 ** 2), 2)
 
     return StatsResponse(
         avg_cpu_percent=round(result.avg_cpu or 0, 2),
@@ -477,6 +518,8 @@ def get_alerts(
     hours: int = Query(default=24, ge=1, le=168),
     severity: Optional[str] = Query(default=None, description="Filter by severity: warning or critical"),
     resolved: Optional[bool] = Query(default=None, description="Filter by resolution status"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Max number of records"),
+    offset: int = Query(default=0, ge=0, description="Number of records to skip (pagination)"),
     db: Session = Depends(get_db),
 ):
     """Return the alert history for the specified time period."""
@@ -490,7 +533,7 @@ def get_alerts(
         query = query.filter(Alert.severity == severity)
     if resolved is not None:
         query = query.filter(Alert.is_resolved == resolved)
-    return query.limit(100).all()
+    return query.offset(offset).limit(limit).all()
 
 
 @app.patch(
