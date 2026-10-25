@@ -220,46 +220,55 @@ def check_thresholds(metrics: dict) -> list[dict]:
     """
     alerts = []
 
+    # Read defensively: a partial metrics dict (e.g. load avg unavailable, or a
+    # future caller) must not crash the scheduler job with a KeyError.
+    cpu = metrics.get("cpu_percent", 0.0)
+    ram = metrics.get("ram_percent", 0.0)
+    ram_used = metrics.get("ram_used_mb", 0.0)
+    disk = metrics.get("disk_percent", 0.0)
+    disk_used = metrics.get("disk_used_gb", 0.0)
+    disk_total = metrics.get("disk_total_gb", 0.0)
+
     # CPU thresholds
-    if metrics["cpu_percent"] >= CPU_CRIT_THRESHOLD:
+    if cpu >= CPU_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "cpu_critical",
             "severity": "critical",
-            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: {CPU_CRIT_THRESHOLD}%)",
+            "message": f"CPU usage is at {cpu}% (threshold: {CPU_CRIT_THRESHOLD}%)",
         })
-    elif metrics["cpu_percent"] >= CPU_WARN_THRESHOLD:
+    elif cpu >= CPU_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "cpu_high",
             "severity": "warning",
-            "message": f"CPU usage is at {metrics['cpu_percent']}% (threshold: {CPU_WARN_THRESHOLD}%)",
+            "message": f"CPU usage is at {cpu}% (threshold: {CPU_WARN_THRESHOLD}%)",
         })
 
     # RAM thresholds
-    if metrics["ram_percent"] >= RAM_CRIT_THRESHOLD:
+    if ram >= RAM_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "ram_critical",
             "severity": "critical",
-            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used, threshold: {RAM_CRIT_THRESHOLD}%)",
+            "message": f"RAM usage is at {ram}% ({ram_used:.0f} MB used, threshold: {RAM_CRIT_THRESHOLD}%)",
         })
-    elif metrics["ram_percent"] >= RAM_WARN_THRESHOLD:
+    elif ram >= RAM_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "ram_high",
             "severity": "warning",
-            "message": f"RAM usage is at {metrics['ram_percent']}% ({metrics['ram_used_mb']:.0f} MB used, threshold: {RAM_WARN_THRESHOLD}%)",
+            "message": f"RAM usage is at {ram}% ({ram_used:.0f} MB used, threshold: {RAM_WARN_THRESHOLD}%)",
         })
 
     # Disk thresholds
-    if metrics["disk_percent"] >= DISK_CRIT_THRESHOLD:
+    if disk >= DISK_CRIT_THRESHOLD:
         alerts.append({
             "alert_type": "disk_critical",
             "severity": "critical",
-            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB, threshold: {DISK_CRIT_THRESHOLD}%)",
+            "message": f"Disk usage is at {disk}% ({disk_used:.1f} GB / {disk_total:.1f} GB, threshold: {DISK_CRIT_THRESHOLD}%)",
         })
-    elif metrics["disk_percent"] >= DISK_WARN_THRESHOLD:
+    elif disk >= DISK_WARN_THRESHOLD:
         alerts.append({
             "alert_type": "disk_high",
             "severity": "warning",
-            "message": f"Disk usage is at {metrics['disk_percent']}% ({metrics['disk_used_gb']:.1f} GB / {metrics['disk_total_gb']:.1f} GB, threshold: {DISK_WARN_THRESHOLD}%)",
+            "message": f"Disk usage is at {disk}% ({disk_used:.1f} GB / {disk_total:.1f} GB, threshold: {DISK_WARN_THRESHOLD}%)",
         })
 
     return alerts

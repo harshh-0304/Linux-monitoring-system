@@ -68,6 +68,18 @@ def test_check_thresholds_critical():
         assert a["severity"] == "critical"
 
 
+def test_check_thresholds_empty_dict_no_crash():
+    # A missing/partial metrics dict must not raise KeyError.
+    assert check_thresholds({}) == []
+
+
+def test_check_thresholds_partial_dict():
+    # Only CPU present and critical; missing ram/disk keys default to safe values.
+    alerts = check_thresholds({"cpu_percent": CPU_CRIT_THRESHOLD + 1})
+    assert len(alerts) == 1
+    assert alerts[0]["alert_type"] == "cpu_critical"
+
+
 def test_format_message():
     msg = _format_message(
         alert_type="cpu_critical",
