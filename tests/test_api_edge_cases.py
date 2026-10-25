@@ -129,6 +129,18 @@ def test_readyz_not_ready_when_metric_stale(monkeypatch, seeded_client):
     assert any("old" in issue for issue in res.json()["issues"])
 
 
+# --- /metrics/current (live OS read, no DB) ---
+
+def test_metrics_current_live_read(empty_client):
+    # Reads live from psutil, so it works even with an empty database.
+    res = empty_client.get("/metrics/current")
+    assert res.status_code == 200
+    data = res.json()
+    for key in ("cpu_percent", "ram_percent", "disk_percent", "cpu_count"):
+        assert key in data
+    assert 0.0 <= data["cpu_percent"] <= 100.0
+
+
 # --- /metrics/latest ---
 
 def test_latest_metric_returns_newest(seeded_client):
