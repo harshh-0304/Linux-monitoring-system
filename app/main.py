@@ -47,6 +47,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _collect_interval_seconds() -> int:
+    """Seconds between metric collections, read from env at call time.
+
+    Reading per call (rather than caching at import) keeps tests and runtime
+    overrides of COLLECT_INTERVAL_SECONDS effective without a restart.
+    """
+    return int(os.getenv("COLLECT_INTERVAL_SECONDS", "60"))
+
+
 # --- Pydantic response models ---
 # These define the exact JSON structure returned by each endpoint.
 # FastAPI validates that our data matches these models before sending responses.
@@ -281,7 +290,7 @@ def readyz(db: Session = Depends(get_db)):
     """
     issues = []
     age_seconds = None
-    collect_interval = int(os.getenv("COLLECT_INTERVAL_SECONDS", "60"))
+    collect_interval = _collect_interval_seconds()
 
     if not is_scheduler_healthy():
         issues.append("scheduler is not running")
@@ -409,7 +418,7 @@ def get_stats(
 
     # Each row stores a bytes/sec rate; multiply by the collection interval to
     # approximate the bytes moved during that cycle, then sum to a total volume.
-    collect_interval = int(os.getenv("COLLECT_INTERVAL_SECONDS", "60"))
+    collect_interval = _collect_interval_seconds()
     total_net_sent_mb = round(((result.sum_net_sent or 0.0) * collect_interval) / (1024 ** 2), 2)
     total_net_recv_mb = round(((result.sum_net_recv or 0.0) * collect_interval) / (1024 ** 2), 2)
 
