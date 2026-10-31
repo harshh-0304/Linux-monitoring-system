@@ -1,5 +1,9 @@
 # AI-Powered Linux Server Monitor
 
+[![CI](https://github.com/harshh-0304/Linux-monitoring-system/actions/workflows/ci.yml/badge.svg)](https://github.com/harshh-0304/Linux-monitoring-system/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 A production-ready Linux server monitoring system that collects CPU, RAM, Disk, and Network metrics, stores them in PostgreSQL, runs AI-powered anomaly detection using Google Gemini, and sends real-time alerts to Telegram.
 
 ---
