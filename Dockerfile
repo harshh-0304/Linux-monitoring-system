@@ -1,7 +1,7 @@
 # ---- Stage: base Python image ----
 # python:3.12-slim is a minimal Debian image with Python pre-installed.
 # "slim" removes dev tools and docs → smaller image (~130 MB vs ~1 GB full).
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # Set working directory inside the container.
 # All subsequent commands run relative to /app.
